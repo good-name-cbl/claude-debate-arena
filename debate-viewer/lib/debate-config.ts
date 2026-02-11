@@ -1,16 +1,14 @@
+import path from "path";
 import { DebateConfig } from "./types";
 
-const DATA_DIR = process.env.DEBATE_DATA_DIR || "/home/makkan/workspace/claude-debate-arena/debate-data";
-
 export function getDebateDataDir(): string {
-  return DATA_DIR;
+  return process.env.DEBATE_DATA_DIR || path.resolve(process.cwd(), "..", "debate-data");
 }
 
 export async function loadDebateConfig(): Promise<DebateConfig> {
   const fs = await import("fs");
-  const path = await import("path");
 
-  const configPath = path.join(DATA_DIR, "config.json");
+  const configPath = path.join(getDebateDataDir(), "config.json");
 
   try {
     const raw = fs.readFileSync(configPath, "utf8");

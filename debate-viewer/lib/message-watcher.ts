@@ -3,17 +3,20 @@ import path from "path";
 import { DebateMessage } from "./types";
 import { getDebateDataDir } from "./debate-config";
 
-const JSONL_FILE = path.join(getDebateDataDir(), "current.jsonl");
+function getJsonlFile(): string {
+  return path.join(getDebateDataDir(), "current.jsonl");
+}
 
 /**
  * Read all messages from the JSONL file.
  */
 export function readAllMessages(): DebateMessage[] {
   try {
-    if (!fs.existsSync(JSONL_FILE)) {
+    const jsonlFile = getJsonlFile();
+    if (!fs.existsSync(jsonlFile)) {
       return [];
     }
-    const content = fs.readFileSync(JSONL_FILE, "utf8");
+    const content = fs.readFileSync(jsonlFile, "utf8");
     return content
       .split("\n")
       .filter((line) => line.trim().length > 0)
@@ -31,16 +34,17 @@ export function readMessagesFromOffset(offset: number): {
   newOffset: number;
 } {
   try {
-    if (!fs.existsSync(JSONL_FILE)) {
+    const jsonlFile = getJsonlFile();
+    if (!fs.existsSync(jsonlFile)) {
       return { messages: [], newOffset: 0 };
     }
 
-    const stat = fs.statSync(JSONL_FILE);
+    const stat = fs.statSync(jsonlFile);
     if (stat.size <= offset) {
       return { messages: [], newOffset: offset };
     }
 
-    const fd = fs.openSync(JSONL_FILE, "r");
+    const fd = fs.openSync(jsonlFile, "r");
     const buffer = Buffer.alloc(stat.size - offset);
     fs.readSync(fd, buffer, 0, buffer.length, offset);
     fs.closeSync(fd);
@@ -64,19 +68,20 @@ export type WatcherCallback = (messages: DebateMessage[]) => void;
  * Returns an abort function.
  */
 export function watchMessages(callback: WatcherCallback): () => void {
+  const jsonlFile = getJsonlFile();
   let currentOffset = 0;
 
   // Read existing file size as initial offset
   try {
-    if (fs.existsSync(JSONL_FILE)) {
-      currentOffset = fs.statSync(JSONL_FILE).size;
+    if (fs.existsSync(jsonlFile)) {
+      currentOffset = fs.statSync(jsonlFile).size;
     }
   } catch {
     // ignore
   }
 
   // Ensure the directory exists for watching
-  const dir = path.dirname(JSONL_FILE);
+  const dir = path.dirname(jsonlFile);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -84,9 +89,9 @@ export function watchMessages(callback: WatcherCallback): () => void {
   // Use polling-based watch for reliability
   const interval = setInterval(() => {
     try {
-      if (!fs.existsSync(JSONL_FILE)) return;
+      if (!fs.existsSync(jsonlFile)) return;
 
-      const stat = fs.statSync(JSONL_FILE);
+      const stat = fs.statSync(jsonlFile);
       if (stat.size > currentOffset) {
         const { messages, newOffset } = readMessagesFromOffset(currentOffset);
         currentOffset = newOffset;
@@ -110,11 +115,11 @@ export function watchMessages(callback: WatcherCallback): () => void {
   // Also try fs.watch for faster detection
   let watcher: fs.FSWatcher | null = null;
   try {
-    watcher = fs.watch(dir, (eventType, filename) => {
+    watcher = fs.watch(dir, (_eventType, filename) => {
       if (filename === "current.jsonl") {
         try {
-          if (!fs.existsSync(JSONL_FILE)) return;
-          const stat = fs.statSync(JSONL_FILE);
+          if (!fs.existsSync(jsonlFile)) return;
+          const stat = fs.statSync(jsonlFile);
           if (stat.size > currentOffset) {
             const { messages, newOffset } =
               readMessagesFromOffset(currentOffset);

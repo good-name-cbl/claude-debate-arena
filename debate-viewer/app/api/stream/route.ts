@@ -3,11 +3,25 @@ import { DebateMessage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   const encoder = new TextEncoder();
 
   // Use a padding comment (2KB) to flush internal compression/proxy buffers
   const padding = `: ${" ".repeat(2048)}\n\n`;
+
+  let cleanupWatcher: (() => void) | null = null;
+  let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+
+  function cleanupAll() {
+    if (keepaliveTimer) {
+      clearInterval(keepaliveTimer);
+      keepaliveTimer = null;
+    }
+    if (cleanupWatcher) {
+      cleanupWatcher();
+      cleanupWatcher = null;
+    }
+  }
 
   const stream = new ReadableStream({
     start(controller) {
@@ -15,38 +29,38 @@ export async function GET() {
       controller.enqueue(encoder.encode(padding));
       controller.enqueue(encoder.encode(": connected\n\n"));
 
-      const cleanup = watchMessages((messages: DebateMessage[]) => {
+      cleanupWatcher = watchMessages((messages: DebateMessage[]) => {
         try {
           for (const msg of messages) {
             const data = `data: ${JSON.stringify(msg)}\n\n`;
             controller.enqueue(encoder.encode(data));
           }
         } catch {
-          // Stream closed
-          cleanup();
+          cleanupAll();
         }
       });
 
       // Keepalive every 15 seconds
-      const keepalive = setInterval(() => {
+      keepaliveTimer = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": keepalive\n\n"));
         } catch {
-          clearInterval(keepalive);
-          cleanup();
+          cleanupAll();
         }
       }, 15000);
 
-      // Cleanup when client disconnects
-      const checkClosed = setInterval(() => {
+      // Cleanup when client disconnects via AbortSignal
+      request.signal.addEventListener("abort", () => {
+        cleanupAll();
         try {
-          controller.enqueue(encoder.encode(""));
+          controller.close();
         } catch {
-          clearInterval(checkClosed);
-          clearInterval(keepalive);
-          cleanup();
+          // already closed
         }
-      }, 5000);
+      });
+    },
+    cancel() {
+      cleanupAll();
     },
   });
 
