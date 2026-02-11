@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /home/makkan/workspace/claude_code_test/scripts/log-message.js"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "topic": "きのこの山 vs たけのこの里",
+  "duration": 180,
+  "participants": [
+    {
+      "name": "moderator",
+      "displayName": "司会者",
+      "role": "moderator",
+      "color": "#EAB308"
+    },
+    {
+      "name": "kinoko-advocate",
+      "displayName": "きのこの山派",
+      "role": "advocate",
+      "side": "left",
+      "color": "#16A34A"
+    },
+    {
+      "name": "takenoko-advocate",
+      "displayName": "たけのこの里派",
+      "role": "advocate",
+      "side": "right",
+      "color": "#DC2626"
+    },
+    {
+      "name": "timekeeper",
+      "displayName": "タイムキーパー",
+      "role": "timekeeper",
+      "color": "#8B5CF6"
+    }
+  ]
+}
