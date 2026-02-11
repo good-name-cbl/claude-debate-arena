@@ -1,6 +1,6 @@
 import { DebateConfig } from "./types";
 
-const DATA_DIR = process.env.DEBATE_DATA_DIR || "/home/makkan/workspace/claude_code_test/debate-data";
+const DATA_DIR = process.env.DEBATE_DATA_DIR || "/home/makkan/workspace/claude-debate-arena/debate-data";
 
 export function getDebateDataDir(): string {
   return DATA_DIR;

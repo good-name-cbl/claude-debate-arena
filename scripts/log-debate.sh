@@ -6,7 +6,7 @@ MSG_TYPE="$3"
 SUMMARY="$4"
 CONTENT="$5"
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
-DATA_DIR="/home/makkan/workspace/claude_code_test/debate-data"
+DATA_DIR="/home/makkan/workspace/claude-debate-arena/debate-data"
 OUTPUT="$DATA_DIR/current.jsonl"
 mkdir -p "$DATA_DIR"
 node -e "

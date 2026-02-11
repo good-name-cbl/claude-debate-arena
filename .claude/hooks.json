@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /home/makkan/workspace/claude_code_test/scripts/log-message.js"
+            "command": "node /home/makkan/workspace/claude-debate-arena/scripts/log-message.js"
           }
         ]
       }

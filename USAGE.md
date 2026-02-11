@@ -124,7 +124,7 @@ rm debate-data/current.jsonl
 ## ディレクトリ構成
 
 ```
-claude_code_test/
+claude-debate-arena/
 ├── .claude/
 │   └── hooks.json                 # PostToolUse hook 設定
 ├── scripts/
