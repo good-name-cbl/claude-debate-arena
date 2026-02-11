@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DebateMessage, DebateConfig, Participant } from "@/lib/types";
-import ParticipantCard from "./ParticipantCard";
-import ModeratorBanner from "./ModeratorBanner";
 import TimerDisplay from "./TimerDisplay";
-import Timeline from "./Timeline";
+import MessageBubble from "./MessageBubble";
+import ParticipantSidebar from "./ParticipantSidebar";
 
 export default function DebateStage() {
   const [messages, setMessages] = useState<DebateMessage[]>([]);
@@ -13,6 +12,7 @@ export default function DebateStage() {
   const [connected, setConnected] = useState(false);
   const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load initial data
   useEffect(() => {
@@ -66,12 +66,16 @@ export default function DebateStage() {
     };
   }, []);
 
-  const getMessagesForParticipant = useCallback(
-    (participantName: string): DebateMessage[] => {
-      return messages.filter((m) => m.sender === participantName);
-    },
-    [messages]
-  );
+  // Auto-scroll on new messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages.length]);
+
+  const getParticipant = (name: string): Participant | undefined => {
+    return config?.participants.find((p) => p.name === name);
+  };
 
   if (!config) {
     return (
@@ -82,20 +86,6 @@ export default function DebateStage() {
         </div>
       </div>
     );
-  }
-
-  const moderator = config.participants.find((p) => p.role === "moderator");
-  const advocates = config.participants.filter((p) => p.role === "advocate");
-  const leftAdvocates = advocates.filter((p) => p.side === "left");
-  const rightAdvocates = advocates.filter((p) => p.side === "right");
-
-  // If no sides are set, split evenly
-  if (leftAdvocates.length === 0 && rightAdvocates.length === 0) {
-    const half = Math.ceil(advocates.length / 2);
-    advocates.forEach((p, i) => {
-      if (i < half) leftAdvocates.push(p);
-      else rightAdvocates.push(p);
-    });
   }
 
   return (
@@ -119,52 +109,36 @@ export default function DebateStage() {
         <TimerDisplay durationSeconds={config.duration} />
       </header>
 
-      {/* Moderator Banner */}
-      {moderator && (
-        <div className="px-4 pt-3">
-          <ModeratorBanner
-            moderator={moderator}
-            messages={getMessagesForParticipant(moderator.name)}
-            newMessageIds={newMessageIds}
-          />
-        </div>
-      )}
-
-      {/* Main Content: Left Advocates | Timeline | Right Advocates */}
-      <main className="flex-1 flex overflow-hidden px-4 pb-4 gap-4 min-h-0">
-        {/* Left Panel */}
-        <div className="flex-1 flex flex-col gap-3 min-w-0">
-          {leftAdvocates.map((p) => (
-            <div key={p.name} className="flex-1 flex flex-col min-h-0">
-              <ParticipantCard
-                participant={p}
-                messages={getMessagesForParticipant(p.name)}
-                newMessageIds={newMessageIds}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Center Timeline */}
-        <div className="w-72 flex-shrink-0 border-x border-gray-800 bg-gray-900/50 rounded-lg overflow-hidden">
-          <Timeline
-            messages={messages}
+      {/* Main Content: Sidebar + Chat Feed */}
+      <main className="flex-1 flex overflow-hidden min-h-0">
+        {/* Participant Sidebar */}
+        <div className="w-56 flex-shrink-0 border-r border-gray-800 bg-gray-900/50">
+          <ParticipantSidebar
             participants={config.participants}
-            newMessageIds={newMessageIds}
+            messages={messages}
           />
         </div>
 
-        {/* Right Panel */}
-        <div className="flex-1 flex flex-col gap-3 min-w-0">
-          {rightAdvocates.map((p) => (
-            <div key={p.name} className="flex-1 flex flex-col min-h-0">
-              <ParticipantCard
-                participant={p}
-                messages={getMessagesForParticipant(p.name)}
-                newMessageIds={newMessageIds}
+        {/* Chat Feed */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto p-4"
+          style={{ minHeight: 0 }}
+        >
+          {messages.length === 0 ? (
+            <p className="text-sm text-gray-500 italic text-center mt-8">
+              メッセージ待機中...
+            </p>
+          ) : (
+            messages.map((msg, i) => (
+              <MessageBubble
+                key={`${msg.timestamp}-${i}`}
+                message={msg}
+                participant={getParticipant(msg.sender)}
+                isNew={newMessageIds.has(msg.timestamp)}
               />
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </main>
     </div>

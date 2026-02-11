@@ -5,16 +5,16 @@ Claude Code のチーム機能で行う討論会を、Web ブラウザでリア�
 ## 仕組み
 
 ```
-[Claude Code チームエージェント]
-    ↓ SendMessage ツール呼び出し
-[PostToolUse Hook]
-    ↓ log-message.js がメッセージを記録
+[Claude Code サブエージェント]
+    ↓ Bash で log-direct.js を実行
 [debate-data/current.jsonl]
     ↓ ファイル変更を検知
 [Next.js SSE ストリーム]
     ↓ リアルタイム配信
 [ブラウザ UI]
 ```
+
+> **注意**: PostToolUse Hook（`log-message.js`）はメインプロセスの `SendMessage` のみで発火し、Task ツールで起動したサブエージェントでは動作しません。そのため、サブエージェントでは `log-direct.js` を Bash 経由で呼び出す方式を正式手順としています。
 
 ## セットアップ
 
@@ -35,8 +35,8 @@ npm install
   "duration": 180,
   "participants": [
     { "name": "moderator", "displayName": "司会者", "role": "moderator", "color": "#EAB308" },
-    { "name": "condo-advocate", "displayName": "マンション派", "role": "advocate", "side": "left", "color": "#3B82F6" },
-    { "name": "house-advocate", "displayName": "一軒家派", "role": "advocate", "side": "right", "color": "#EF4444" },
+    { "name": "condo-advocate", "displayName": "マンション派", "role": "advocate", "color": "#3B82F6" },
+    { "name": "house-advocate", "displayName": "一軒家派", "role": "advocate", "color": "#EF4444" },
     { "name": "timekeeper", "displayName": "タイムキーパー", "role": "timekeeper", "color": "#8B5CF6" }
   ]
 }
@@ -57,14 +57,7 @@ npm install
 | `name` | Claude Code チームのエージェント名と一致させる |
 | `displayName` | 画面に表示される名前 |
 | `role` | `moderator` / `advocate` / `timekeeper` |
-| `side` | `left` または `right`（`advocate` のみ） |
 | `color` | 表示色（HEX） |
-
-#### 役割（role）による表示位置
-
-- **`moderator`** → 画面上部のバナーに最新発言を表示
-- **`advocate`** → 左右のパネルに発言が時系列で流れる（`side` で配置を決定）
-- **`timekeeper`** → タイマーに統合（メッセージは表示しない）
 
 ## 使い方
 
@@ -86,7 +79,21 @@ npm run dev
 
 別ターミナルで Claude Code のチーム討論を開始します。
 
-エージェント同士が `SendMessage` を呼び出すたびに、PostToolUse hook が自動的にメッセージを `debate-data/current.jsonl` に記録し、ブラウザにリアルタイムで表示されます。
+各サブエージェントのプロンプトに、以下の Bash コマンドによるメッセージ送信手順を含めてください。
+
+```bash
+# broadcast（全員向け）
+cat <<'LOGEOF' | node /path/to/claude-debate-arena/scripts/log-direct.js
+{"sender":"エージェント名","recipient":"all","content":"メッセージ内容","summary":"要約","messageType":"broadcast"}
+LOGEOF
+
+# DM（特定の相手向け）
+cat <<'LOGEOF' | node /path/to/claude-debate-arena/scripts/log-direct.js
+{"sender":"エージェント名","recipient":"相手名","content":"メッセージ内容","summary":"要約","messageType":"message"}
+LOGEOF
+```
+
+> **注意**: `SendMessage` ツールではなく、必ず Bash で `log-direct.js` を呼び出してください。サブエージェントでは PostToolUse Hook が発火しないため、`SendMessage` ではメッセージがビューワーに表示されません。
 
 ### 4. 討論をリセット
 
@@ -101,25 +108,29 @@ rm debate-data/current.jsonl
 ```
 ┌─────────────────────────────────────────┐
 │  [トピック表示]              [タイマー]  │
-├─────────────────────────────────────────┤
-│          [司会者バナー]                  │
-├────────────┬────────────┬───────────────┤
-│  左側参加者 │ タイムライン │  右側参加者   │
-│  の発言     │  (時系列)   │  の発言       │
-│             │            │               │
-│  メッセージ │  全発言の   │  メッセージ   │
-│  が下に     │  時系列     │  が下に       │
-│  流れる     │  表示       │  流れる       │
-└────────────┴────────────┴───────────────┘
+├──────────┬──────────────────────────────┤
+│ 参加者   │                              │
+│ サイド   │   チャットフィード            │
+│ バー     │   (全メッセージ時系列表示)    │
+│          │                              │
+│ 名前     │   [司会者] 開会宣言          │
+│ 役割     │   [弁論者A] 主張             │
+│ 発言数   │   [弁論者B] 反論             │
+│          │   [計時] 残り時間通知         │
+│          │   ...                        │
+└──────────┴──────────────────────────────┘
 ```
+
+全参加者のメッセージが Slack/Discord 風のチャット形式で時系列に表示されます。各メッセージは送信者のカラーで色分けされます。
 
 ### UI 機能
 
+- **チャットフィード**: 全参加者のメッセージを時系列で一つのストリームに表示
+- **参加者サイドバー**: 各参加者の名前・役割・発言数をコンパクトに表示
 - **タイマー**: ▶（開始）/ ⏸（停止）/ ↺（リセット）を手動操作。制限時間超過で赤く点滅
 - **メッセージ**: 新着メッセージはフェードインアニメーション付きで表示
-- **自動スクロール**: 各パネルは新着メッセージで自動的に最下部へスクロール
+- **自動スクロール**: チャットフィードは新着メッセージで自動的に最下部へスクロール
 - **接続状態**: ヘッダー左下に緑（接続中）/ 赤（再接続中）で表示
-- **タイムライン**: 中央パネルに全参加者の発言を時系列で一覧表示
 
 ## ディレクトリ構成
 
@@ -128,7 +139,9 @@ claude-debate-arena/
 ├── .claude/
 │   └── hooks.json                 # PostToolUse hook 設定
 ├── scripts/
-│   └── log-message.js             # メッセージキャプチャスクリプト
+│   ├── log-direct.js              # メッセージ記録スクリプト（正式手順）
+│   ├── log-message.js             # PostToolUse Hook 用（メインプロセスのみ）
+│   └── log-debate.sh              # シェルラッパー
 ├── debate-data/
 │   ├── config.json                # 討論設定
 │   └── current.jsonl              # メッセージログ（自動生成）
@@ -147,7 +160,6 @@ claude-debate-arena/
 
 | 問題 | 対処法 |
 |---|---|
-| メッセージが表示されない | `.claude/hooks.json` が正しく配置されているか確認 |
+| メッセージが表示されない | エージェントが Bash で `log-direct.js` を呼び出しているか確認 |
 | SSE 接続が切れる | ブラウザをリロード（EventSource は自動再接続します） |
-| 参加者が「unknown」と表示される | `config.json` の `name` がエージェント名と一致しているか確認 |
-| hook がサブエージェントで動かない | エージェントプロンプトに Bash でのログ出力を含める（フォールバック） |
+| 参加者が「unknown」と表示される | `config.json` の `name` が `log-direct.js` に渡す `sender` と一致しているか確認 |
