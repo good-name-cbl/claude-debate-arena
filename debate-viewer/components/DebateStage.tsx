@@ -5,6 +5,8 @@ import { DebateMessage, DebateConfig, Participant } from "@/lib/types";
 import TimerDisplay from "./TimerDisplay";
 import MessageBubble from "./MessageBubble";
 import ParticipantSidebar from "./ParticipantSidebar";
+import TTSControls from "./TTSControls";
+import { useTTS } from "@/hooks/useTTS";
 
 export default function DebateStage() {
   const [messages, setMessages] = useState<DebateMessage[]>([]);
@@ -13,6 +15,8 @@ export default function DebateStage() {
   const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const tts = useTTS({ participants: config?.participants ?? [] });
 
   // Load initial data
   useEffect(() => {
@@ -40,6 +44,7 @@ export default function DebateStage() {
       try {
         const msg: DebateMessage = JSON.parse(event.data);
         setMessages((prev) => [...prev, msg]);
+        tts.enqueue(msg);
 
         // Track new message for animation
         setNewMessageIds((prev) => {
@@ -106,6 +111,16 @@ export default function DebateStage() {
             </span>
           </div>
         </div>
+        <TTSControls
+          enabled={tts.enabled}
+          onEnabledChange={tts.setEnabled}
+          available={tts.available}
+          volume={tts.volume}
+          onVolumeChange={tts.setVolume}
+          queueLength={tts.queueLength}
+          isSpeaking={tts.speakingMessageTimestamp !== null}
+          onSkip={tts.skip}
+        />
         <TimerDisplay durationSeconds={config.duration} />
       </header>
 
@@ -136,6 +151,7 @@ export default function DebateStage() {
                 message={msg}
                 participant={getParticipant(msg.sender)}
                 isNew={newMessageIds.has(msg.timestamp)}
+                isSpeaking={tts.speakingMessageTimestamp === msg.timestamp}
               />
             ))
           )}

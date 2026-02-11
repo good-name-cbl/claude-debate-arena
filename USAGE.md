@@ -58,6 +58,7 @@ npm install
 | `displayName` | 画面に表示される名前 |
 | `role` | `moderator` / `advocate` / `timekeeper` |
 | `color` | 表示色（HEX） |
+| `voicevoxSpeakerId` | VOICEVOX の話者 ID（音声読み上げ用、省略可） |
 
 ## 使い方
 
@@ -131,6 +132,7 @@ rm debate-data/current.jsonl
 - **メッセージ**: 新着メッセージはフェードインアニメーション付きで表示
 - **自動スクロール**: チャットフィードは新着メッセージで自動的に最下部へスクロール
 - **接続状態**: ヘッダー左下に緑（接続中）/ 赤（再接続中）で表示
+- **音声読み上げ**: VOICEVOX 連携で参加者ごとに異なる声で読み上げ（詳細は後述）
 
 ## ディレクトリ構成
 
@@ -156,6 +158,64 @@ claude-debate-arena/
     └── lib/                       # 共通ロジック・型定義
 ```
 
+## 音声読み上げ（VOICEVOX 連携）
+
+VOICEVOX エンジンを起動しておくと、メッセージを参加者ごとに異なる声でリアルタイムに読み上げできます。
+
+### VOICEVOX エンジンの起動
+
+Docker で起動するのが最も簡単です。
+
+```bash
+# CPU 版
+docker run --rm -it -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+
+# GPU 版（NVIDIA GPU がある場合、合成が高速）
+docker run --rm -it --gpus all -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:nvidia-latest
+```
+
+起動後、http://localhost:50021/docs で API ドキュメントが確認できます。
+
+### 使い方
+
+1. VOICEVOX エンジンを起動した状態でビューワーを開く
+2. ヘッダーの 🔇 ボタンが有効になる（VOICEVOX 未接続時はグレーアウト）
+3. ボタンをクリックして音声を ON にする
+4. 新着メッセージが自動的にキューイングされ、順番に読み上げられる
+
+### コントロール
+
+| 操作 | 説明 |
+|---|---|
+| 🔇 / 🔊 ボタン | 音声の ON/OFF 切替 |
+| 音量スライダー | 音量調整（再生中も即時反映） |
+| ⏭ ボタン | 現在の読み上げをスキップして次へ |
+| 「N件待ち」 | キューに溜まっているメッセージ数 |
+
+読み上げ中のメッセージには 🔊 アイコンとハイライト表示が付きます。
+
+### 話者の設定
+
+`debate-data/config.json` の各参加者に `voicevoxSpeakerId` を指定します。
+
+```json
+{
+  "name": "moderator",
+  "displayName": "司会者",
+  "role": "moderator",
+  "color": "#EAB308",
+  "voicevoxSpeakerId": 2
+}
+```
+
+利用可能な話者 ID は VOICEVOX エンジンに問い合わせできます。
+
+```bash
+curl -s http://localhost:50021/speakers | jq '.[] | {name, styles: [.styles[] | {id, name}]}'
+```
+
+`voicevoxSpeakerId` を省略した場合はデフォルト話者（ID: 1）が使われます。
+
 ## トラブルシューティング
 
 | 問題 | 対処法 |
@@ -163,3 +223,6 @@ claude-debate-arena/
 | メッセージが表示されない | エージェントが Bash で `log-direct.js` を呼び出しているか確認 |
 | SSE 接続が切れる | ブラウザをリロード（EventSource は自動再接続します） |
 | 参加者が「unknown」と表示される | `config.json` の `name` が `log-direct.js` に渡す `sender` と一致しているか確認 |
+| 音声ボタンがグレーアウト | VOICEVOX エンジンが `localhost:50021` で起動しているか確認 |
+| 音声が再生されない | ブラウザの自動再生ポリシーにより、最初にボタンをクリックする操作が必要です |
+| 読み上げの声が同じになる | `config.json` の各参加者に異なる `voicevoxSpeakerId` を設定しているか確認 |

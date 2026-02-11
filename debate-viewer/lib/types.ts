@@ -16,6 +16,7 @@ export interface Participant {
   role: ParticipantRole;
   side?: Side;
   color: string;
+  voicevoxSpeakerId?: number;
 }
 
 export interface DebateConfig {
